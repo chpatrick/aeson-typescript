@@ -34,28 +34,26 @@ import Data.Function
 import qualified Data.List as L
 import Data.Maybe
 import Data.Proxy
-import qualified Data.Set as S
 import Data.String.Interpolate
 import Language.Haskell.TH as TH
 import Language.Haskell.TH.Datatype
 import Language.Haskell.TH.Syntax hiding (lift)
+import Data.Containers.ListUtils (nubOrd)
 
 
-getTransitiveClosure :: S.Set TSType -> S.Set TSType
-getTransitiveClosure = fix $ \loop items ->
-  let items' = S.unions (items : [getMore x | x <- S.toList items])
-   in if
-          | items' == items -> items
-          | otherwise -> loop items'
-
-  where getMore :: TSType -> S.Set TSType
-        getMore (TSType x) = S.fromList $ getParentTypes x
+getTransitiveClosure :: [TSType] -> [TSType]
+getTransitiveClosure initialTypes = fix (\loop items -> let items' = nubOrd (items ++ concatMap getMore items) in
+                                            if | items' == items -> items
+                                               | otherwise -> loop items'
+                                        ) initialTypes
+  where getMore :: TSType -> [TSType]
+        getMore (TSType x) = getParentTypes x
 
 getTypeScriptDeclarationsRecursively :: (TypeScript a) => Proxy a -> [TSDeclaration]
-getTypeScriptDeclarationsRecursively initialType = S.toList $ S.fromList declarations
+getTypeScriptDeclarationsRecursively initialType = nubOrd declarations
   where
-    closure = getTransitiveClosure (S.fromList [TSType initialType])
-    declarations = mconcat [getTypeScriptDeclarations x | TSType x <- S.toList closure]
+    closure = getTransitiveClosure [TSType initialType]
+    declarations = mconcat [getTypeScriptDeclarations x | TSType x <- closure]
 
 
 -- * Recursively deriving missing TypeScript interfaces
